@@ -14,37 +14,29 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package anupam.acrylic;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
 
-public class Splash extends Activity {
-
+class GraphicsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // TODO Auto-generated method stub
         super.onCreate(savedInstanceState);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        setContentView(R.layout.main);
+        this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+    }
 
-        Thread t = new Thread() {
-
-            public void run() {
-                try {
-                    Thread.sleep(1000);
-
-                    startActivity(new Intent().setClassName("anupam.acrylic",
-                            "anupam.acrylic.EasyPaint"));
-                    finish();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        };
-        t.start();
+    @Override
+    public void setContentView(View view) {
+        if (false) { // set to true to test Picture
+            ViewGroup vg = new PictureLayout(this);
+            vg.addView(view);
+            view = vg;
+        }
+        super.setContentView(view);
     }
 }
+

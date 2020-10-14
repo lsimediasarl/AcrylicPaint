@@ -14,11 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package anupam.acrylic;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.ActionBar;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
@@ -72,8 +73,7 @@ import java.io.IOException;
 import java.util.Calendar;
 
 @SuppressLint("ClickableViewAccessibility")
-public class EasyPaint extends GraphicsActivity implements
-        ColorPickerDialog.OnColorChangedListener {
+public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnColorChangedListener {
 
     private static final float TOUCH_TOLERANCE = 4;
     private static final int CHOOSE_IMAGE = 0;
@@ -84,6 +84,7 @@ public class EasyPaint extends GraphicsActivity implements
     private MaskFilter mBlur;
     private boolean doubleBackToExitPressedOnce = false;
     private MyView contentView;
+    private File source = null;   //--- Source file to change
 
     private boolean waitingForBackgroundColor = false; //If true and colorChanged() is called, fill the background, else mPaint.setColor()
     private boolean extractingColor = false; //If this is true, the next touch event should extract a color rather than drawing a line.
@@ -92,6 +93,11 @@ public class EasyPaint extends GraphicsActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        ActionBar ab = getActionBar();
+        ab.setDisplayShowHomeEnabled(false);
+        ab.setDisplayHomeAsUpEnabled(false);
+        ab.setDisplayShowTitleEnabled(false);
+        ab.setDisplayUseLogoEnabled(false);
         // it removes the title from the actionbar(more space for icons?)
         // this.getActionBar().setDisplayShowTitleEnabled(false);
 
@@ -102,7 +108,7 @@ public class EasyPaint extends GraphicsActivity implements
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
         mPaint.setDither(true);
-        mPaint.setColor(Color.GREEN);
+        mPaint.setColor(Color.RED);
         mPaint.setStyle(Paint.Style.STROKE);
         mPaint.setStrokeJoin(Paint.Join.ROUND);
         mPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -141,8 +147,7 @@ public class EasyPaint extends GraphicsActivity implements
         }
 
         this.doubleBackToExitPressedOnce = true;
-        Toast.makeText(this, R.string.press_back_again, Toast.LENGTH_SHORT)
-                .show();
+        Toast.makeText(this, R.string.press_back_again, Toast.LENGTH_SHORT).show();
 
         new Handler().postDelayed(() -> doubleBackToExitPressedOnce = false, 3000);
     }
@@ -181,204 +186,208 @@ public class EasyPaint extends GraphicsActivity implements
     public boolean onOptionsItemSelected(MenuItem item) {
         mPaint.setXfermode(null);
         mPaint.setAlpha(0xFF);
+        int itemId = item.getItemId();
+        if (itemId == R.id.extract_color_menu) {
+            Toast.makeText(getApplicationContext(), R.string.tap_to_extract_color, Toast.LENGTH_LONG).show();
+            extractingColor = true;
+            return true;
 
-        switch (item.getItemId()) {
-            case R.id.extract_color_menu: {
-                Toast.makeText(getApplicationContext(),
-                        R.string.tap_to_extract_color,
-                        Toast.LENGTH_LONG).show();
-                extractingColor = true;
-                return true;
-            }
-            case R.id.brush_menu:
-                mPaint.setShader(null);
-                mPaint.setMaskFilter(null);
-                return true;
-            case R.id.palette_menu:
-                new ColorPickerDialog(this, this, mPaint.getColor()).show();
-                return true;
-            case R.id.emboss_submenu:
-                mPaint.setShader(null);
-                mPaint.setMaskFilter(mEmboss);
-                return true;
-            case R.id.smudge_submenu: {
-                /* I considered making this what happens when the blur_menu item is selected, but
-                 * that could surprise users who are used to blur_menu's previous functionality, so
-                 * I made this new smudge_menu item instead. I don't like calling it "Smudge" because
-                 * this isn't exactly the same as what Photoshop and GIMP refer to as "Smudge", but I
-                 * couldn't think of a better name that isn't "Blur".
-                 * ~TheOpenSourceNinja
+        } else if (itemId == R.id.brush_menu) {
+            mPaint.setShader(null);
+            mPaint.setMaskFilter(null);
+            return true;
+
+        } else if (itemId == R.id.palette_menu) {
+            new ColorPickerDialog(this, this, mPaint.getColor()).show();
+            return true;
+
+        } else if (itemId == R.id.emboss_submenu) {
+            mPaint.setShader(null);
+            mPaint.setMaskFilter(mEmboss);
+            return true;
+
+        } else if (itemId == R.id.smudge_submenu) {
+            /* I considered making this what happens when the blur_menu item is selected, but
+             * that could surprise users who are used to blur_menu's previous functionality, so
+             * I made this new smudge_menu item instead. I don't like calling it "Smudge" because
+             * this isn't exactly the same as what Photoshop and GIMP refer to as "Smudge", but I
+             * couldn't think of a better name that isn't "Blur".
+             * ~TheOpenSourceNinja
+             */
+            if (Build.VERSION.SDK_INT >= 17) {
+                /* Basically what we're doing here is copying the entire foreground bitmap,
+                 * blurring it, then telling mPaint to use that instead of a solid color.
                  */
-                if (Build.VERSION.SDK_INT >= 17) {
-                    /* Basically what we're doing here is copying the entire foreground bitmap,
-                     * blurring it, then telling mPaint to use that instead of a solid color.
-                     */
 
-                    RenderScript rs = RenderScript.create(getApplicationContext());
-                    ScriptIntrinsicBlur script;
-                    try {
-                        script = ScriptIntrinsicBlur.create(rs, Element.RGBA_8888(rs));
-                    } catch (RSIllegalArgumentException e) {
-                        script = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
-                    }
-                    script.setRadius(20f); //The radius must be between 0 and 25. Smaller radius means less blur. I just picked 20 randomly. ~TheOpenSourceNinja
-
-                    //copy the foreground: (n API level 18+, this will be really fast because it uses a shared memory model, thus not really copying everything)
-                    Allocation input = Allocation.createFromBitmap(rs, contentView.mBitmap);
-                    script.setInput(input);
-
-                    //allocate memory for the output:
-                    Allocation output = Allocation.createTyped(rs, input.getType());
-
-                    //Blur the image:
-                    script.forEach(output);
-
-                    //Store the blurred image as a Bitmap object:
-                    Bitmap blurred = Bitmap.createBitmap(contentView.mBitmap);
-                    output.copyTo(blurred);
-
-                    //Tell mPaint to use the blurred image:
-                    Shader shader = new BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                    mPaint.setShader(shader);
-                } else {
-                    Toast.makeText(this.getApplicationContext(),
-                            R.string.ability_disabled_need_newer_api_level,
-                            Toast.LENGTH_LONG).show();
-                }
-                return true;
-            }
-            case R.id.blur_submenu:
-                mPaint.setShader(null);
-                mPaint.setMaskFilter(mBlur);
-                return true;
-            case R.id.size_menu: {
-                LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-                View layout = inflater.inflate(R.layout.brush,
-                        (ViewGroup) findViewById(R.id.root));
-                AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                        .setView(layout);
-                builder.setTitle(R.string.choose_width);
-                final AlertDialog alertDialog = builder.create();
-                alertDialog.show();
-                SeekBar sb = (SeekBar) layout.findViewById(R.id.brushSizeSeekBar);
-                sb.setProgress(getStrokeSize());
-                final TextView txt = (TextView) layout
-                        .findViewById(R.id.sizeValueTextView);
-                txt.setText(String.format(
-                        getResources().getString(R.string.your_selected_size_is),
-                        getStrokeSize() + 1));
-                sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                    public void onProgressChanged(SeekBar seekBar,
-                                                  final int progress, boolean fromUser) {
-                        // Do something here with new value
-                        mPaint.setStrokeWidth(progress);
-                        txt.setText(String.format(
-                                getResources().getString(
-                                        R.string.your_selected_size_is), progress + 1));
-                    }
-
-                    @Override
-                    public void onStartTrackingTouch(SeekBar seekBar) {
-                        // TODO Auto-generated method stub
-                    }
-
-                    @Override
-                    public void onStopTrackingTouch(SeekBar seekBar) {
-                        // TODO Auto-generated method stub
-                    }
-                });
-                return true;
-            }
-            case R.id.erase_menu: {
-                LayoutInflater inflater_e = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-                View layout_e = inflater_e.inflate(R.layout.brush,
-                        (ViewGroup) findViewById(R.id.root));
-                AlertDialog.Builder builder_e = new AlertDialog.Builder(this)
-                        .setView(layout_e);
-                builder_e.setTitle(R.string.choose_width);
-                final AlertDialog alertDialog_e = builder_e.create();
-                alertDialog_e.show();
-                SeekBar sb_e = (SeekBar) layout_e.findViewById(R.id.brushSizeSeekBar);
-                sb_e.setProgress(getStrokeSize());
-                final TextView txt_e = (TextView) layout_e
-                        .findViewById(R.id.sizeValueTextView);
-                txt_e.setText(String.format(
-                        getResources().getString(R.string.your_selected_size_is),
-                        getStrokeSize() + 1));
-                sb_e.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                    public void onProgressChanged(SeekBar seekBar,
-                                                  final int progress, boolean fromUser) {
-                        // Do something here with new value
-                        mPaint.setStrokeWidth(progress);
-                        txt_e.setText(String.format(
-                                getResources().getString(
-                                        R.string.your_selected_size_is), progress + 1));
-                    }
-
-                    public void onStartTrackingTouch(SeekBar seekBar) {
-                        // TODO Auto-generated method stub
-                    }
-
-                    public void onStopTrackingTouch(SeekBar seekBar) {
-                        // TODO Auto-generated method stub
-                    }
-                });
-                mPaint.setShader(null);
-                mPaint.setXfermode(new PorterDuffXfermode(Mode.CLEAR));
-                return true;
-            }
-            case R.id.clear_foreground_submenu: {
-                contentView.mBitmap.eraseColor(Color.TRANSPARENT);
-                return true;
-            }
-            case R.id.clear_background_submenu: {
-                contentView.mBitmapBackground.eraseColor(Color.TRANSPARENT);
-                return true;
-            }
-            case R.id.clear_everything_submenu: {
-                contentView.mBitmap.eraseColor(Color.TRANSPARENT);
-                contentView.mBitmapBackground.eraseColor(Color.TRANSPARENT);
-                return true;
-            }
-            case R.id.save_menu:
-                takeScreenshot(true);
-                break;
-            case R.id.share_menu: {
-                File screenshotPath = takeScreenshot(false);
-                Intent i = new Intent();
-                i.setAction(Intent.ACTION_SEND);
-                i.setType("image/png");
-                i.putExtra(Intent.EXTRA_SUBJECT,
-                        getString(R.string.share_title_template));
-                i.putExtra(Intent.EXTRA_TEXT,
-                        getString(R.string.share_text_template));
-                i.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(screenshotPath));
+                RenderScript rs = RenderScript.create(getApplicationContext());
+                ScriptIntrinsicBlur script;
                 try {
-                    startActivity(Intent.createChooser(i,
-                            getString(R.string.toolbox_share_title)));
-                } catch (ActivityNotFoundException ex) {
-                    Toast.makeText(this.getApplicationContext(),
-                            R.string.no_way_to_share,
-                            Toast.LENGTH_LONG).show();
+                    script = ScriptIntrinsicBlur.create(rs, Element.RGBA_8888(rs));
+                } catch (RSIllegalArgumentException e) {
+                    script = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
                 }
-                break;
+                script.setRadius(20f); //The radius must be between 0 and 25. Smaller radius means less blur. I just picked 20 randomly. ~TheOpenSourceNinja
+
+                //copy the foreground: (n API level 18+, this will be really fast because it uses a shared memory model, thus not really copying everything)
+                Allocation input = Allocation.createFromBitmap(rs, contentView.mBitmap);
+                script.setInput(input);
+
+                //allocate memory for the output:
+                Allocation output = Allocation.createTyped(rs, input.getType());
+
+                //Blur the image:
+                script.forEach(output);
+
+                //Store the blurred image as a Bitmap object:
+                Bitmap blurred = Bitmap.createBitmap(contentView.mBitmap);
+                output.copyTo(blurred);
+
+                //Tell mPaint to use the blurred image:
+                Shader shader = new BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+                mPaint.setShader(shader);
+            } else {
+                Toast.makeText(this.getApplicationContext(),
+                        R.string.ability_disabled_need_newer_api_level,
+                        Toast.LENGTH_LONG).show();
             }
-            case R.id.open_image_menu: {
-                Intent intent = new Intent();
-                intent.setType("image/*"); //The argument is an all-lower-case MIME type - in this case, any image format.
-                intent.setAction(Intent.ACTION_GET_CONTENT);
-                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false); //This is false by default, but I felt that for code clarity it was better to be explicit: we only want one image
-                startActivityForResult(Intent.createChooser(intent, getResources().getString(R.string.select_image_to_open)), CHOOSE_IMAGE);
-                break;
+            return true;
+
+        } else if (itemId == R.id.blur_submenu) {
+            mPaint.setShader(null);
+            mPaint.setMaskFilter(mBlur);
+            return true;
+
+        } else if (itemId == R.id.size_menu) {
+            LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            View layout = inflater.inflate(R.layout.brush,  (ViewGroup) findViewById(R.id.root));
+            AlertDialog.Builder builder = new AlertDialog.Builder(this).setView(layout);
+            builder.setTitle(R.string.choose_width);
+            final AlertDialog alertDialog = builder.create();
+            alertDialog.show();
+            SeekBar sb = (SeekBar) layout.findViewById(R.id.brushSizeSeekBar);
+            sb.setProgress(getStrokeSize());
+            final TextView txt = (TextView) layout.findViewById(R.id.sizeValueTextView);
+            txt.setText(String.format(getResources().getString(R.string.your_selected_size_is),getStrokeSize() + 1));
+            sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                public void onProgressChanged(SeekBar seekBar,final int progress, boolean fromUser) {
+                    // Do something here with new value
+                    mPaint.setStrokeWidth(progress);
+                    txt.setText(String.format(getResources().getString(R.string.your_selected_size_is), progress + 1));
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                    // TODO Auto-generated method stub
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    // TODO Auto-generated method stub
+                }
+            });
+            return true;
+
+        } else if (itemId == R.id.erase_menu) {
+            LayoutInflater inflater_e = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            View layout_e = inflater_e.inflate(R.layout.brush, (ViewGroup) findViewById(R.id.root));
+            AlertDialog.Builder builder_e = new AlertDialog.Builder(this).setView(layout_e);
+            builder_e.setTitle(R.string.choose_width);
+            final AlertDialog alertDialog_e = builder_e.create();
+            alertDialog_e.show();
+            SeekBar sb_e = (SeekBar) layout_e.findViewById(R.id.brushSizeSeekBar);
+            sb_e.setProgress(getStrokeSize());
+            final TextView txt_e = (TextView) layout_e.findViewById(R.id.sizeValueTextView);
+            txt_e.setText(String.format(getResources().getString(R.string.your_selected_size_is),getStrokeSize() + 1));
+            sb_e.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                public void onProgressChanged(SeekBar seekBar,
+                                              final int progress, boolean fromUser) {
+                    // Do something here with new value
+                    mPaint.setStrokeWidth(progress);
+                    txt_e.setText(String.format(getResources().getString(R.string.your_selected_size_is), progress + 1));
+                }
+
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                    // TODO Auto-generated method stub
+                }
+
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    // TODO Auto-generated method stub
+                }
+            });
+            mPaint.setShader(null);
+            mPaint.setXfermode(new PorterDuffXfermode(Mode.CLEAR));
+            return true;
+
+        } else if (itemId == R.id.clear_foreground_submenu) {
+            contentView.mBitmap.eraseColor(Color.TRANSPARENT);
+            return true;
+
+        } else if (itemId == R.id.clear_background_submenu) {
+            contentView.mBitmapBackground.eraseColor(Color.TRANSPARENT);
+            return true;
+
+        } else if (itemId == R.id.clear_everything_submenu) {
+            contentView.mBitmap.eraseColor(Color.TRANSPARENT);
+            contentView.mBitmapBackground.eraseColor(Color.TRANSPARENT);
+            return true;
+
+        } else if (itemId == R.id.save_menu) {
+            if (source != null) {
+                if (source.getName().endsWith(".png")) {
+                    File tmp = takeScreenshot(true, CompressFormat.PNG);
+                    source.delete();
+                    tmp.renameTo(source);
+                    setResult(Activity.RESULT_OK);
+                    finish();
+
+                } else if (source.getName().endsWith(".jpg")) {
+                    File tmp = takeScreenshot(true, CompressFormat.JPEG);
+                    source.delete();
+                    tmp.renameTo(source);
+                    setResult(Activity.RESULT_OK);
+                    finish();
+
+                } else {
+                    Toast.makeText(this, "Image format for " + source.getName() + " not supported", Toast.LENGTH_LONG);
+
+                }
+
+            } else {
+                takeScreenshot(true, CompressFormat.PNG);
             }
-            case R.id.fill_background_with_color: {
-                waitingForBackgroundColor = true;
-                new ColorPickerDialog(this, this, contentView.mBitmapBackground.getPixel(0, 0)).show();
-                return true;
+            return true;
+
+        } else if (itemId == R.id.share_menu) {
+            File screenshotPath = takeScreenshot(false, CompressFormat.PNG);
+            Intent i = new Intent();
+            i.setAction(Intent.ACTION_SEND);
+            i.setType("image/png");
+            i.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_title_template));
+            i.putExtra(Intent.EXTRA_TEXT, getString(R.string.share_text_template));
+            i.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(screenshotPath));
+            try {
+                startActivity(Intent.createChooser(i, getString(R.string.toolbox_share_title)));
+
+            } catch (ActivityNotFoundException ex) {
+                Toast.makeText(this.getApplicationContext(), R.string.no_way_to_share, Toast.LENGTH_LONG).show();
             }
-            case R.id.about_menu:
-                startActivity(new Intent(this, AboutActivity.class));
-                break;
+            return true;
+
+        } else if (itemId == R.id.open_image_menu) {
+            Intent intent = new Intent();
+            intent.setType("image/*"); //The argument is an all-lower-case MIME type - in this case, any image format.
+            intent.setAction(Intent.ACTION_GET_CONTENT);
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false); //This is false by default, but I felt that for code clarity it was better to be explicit: we only want one image
+            startActivityForResult(Intent.createChooser(intent, getResources().getString(R.string.select_image_to_open)), CHOOSE_IMAGE);
+            return true;
+
+        } else if (itemId == R.id.fill_background_with_color) {
+            waitingForBackgroundColor = true;
+            new ColorPickerDialog(this, this, contentView.mBitmapBackground.getPixel(0, 0)).show();
+            return true;
+
+        } else if (itemId == R.id.about_menu) {
+            startActivity(new Intent(this, AboutActivity.class));
         }
         return super.onOptionsItemSelected(item);
     }
@@ -392,7 +401,7 @@ public class EasyPaint extends GraphicsActivity implements
     /**
      * This takes the screenshot of the whole screen. Is this a good thing?
      */
-    private File takeScreenshot(boolean showToast) {
+    private File takeScreenshot(boolean showToast, CompressFormat comp) {
         // First we must check that permission has been granted, and if not, ask
         if (isWritePermissionGranted()) {
             // Do nothing.
@@ -427,7 +436,8 @@ public class EasyPaint extends GraphicsActivity implements
                             + cal.get(Calendar.MINUTE) + "_" + cal.get(Calendar.SECOND)
                             + ".png");
             output = new FileOutputStream(file);
-            copyBitmap.compress(CompressFormat.PNG, 100, output);
+            copyBitmap.compress(comp, 100, output);
+
         } catch (FileNotFoundException e) {
             file = null;
             e.printStackTrace();
@@ -453,12 +463,12 @@ public class EasyPaint extends GraphicsActivity implements
                         .show();
             // sending a broadcast to the media scanner so it will scan the new
             // screenshot.
-            Intent requestScan = new Intent(
-                    Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+            Intent requestScan = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
             requestScan.setData(Uri.fromFile(file));
             sendBroadcast(requestScan);
 
             return file;
+
         } else {
             return null;
         }
@@ -499,7 +509,10 @@ public class EasyPaint extends GraphicsActivity implements
         try {
             //I don't like loading both full-sized and reduced-size copies of the image (the larger copy can use a lot of memory), but I couldn't find any other way to do this.
             Bitmap fullsize = MediaStore.Images.Media.getBitmap(this.getContentResolver(), uri);
-            contentView.mBitmapBackground = Bitmap.createScaledBitmap(fullsize, contentView.mBitmap.getWidth(), contentView.mBitmap.getHeight(), true);
+
+            //TODO: Keep aspect ratio
+            int h = fullsize.getHeight()*contentView.mBitmap.getWidth()/fullsize.getWidth();
+            contentView.mBitmapBackground = Bitmap.createScaledBitmap(fullsize, contentView.mBitmap.getWidth(), h, true);
             //contentView.mCanvas = new Canvas(contentView.mBitmapBackground);
         } catch (IOException exception) {
             //TODO: How should we handle this exception?
@@ -517,6 +530,16 @@ public class EasyPaint extends GraphicsActivity implements
             }
 
         }
+
+        //--- Check if a source image needs to be edited
+        Bundle bundle = intent.getExtras();
+        if (bundle != null) {
+            String f = bundle.getString("file", "");
+            if (!f.equals("")) {
+                source = new File(f);
+                setBackgroundUri(Uri.fromFile(source));
+            }
+        }
     }
 
     public class MyView extends View {
@@ -531,12 +554,13 @@ public class EasyPaint extends GraphicsActivity implements
             super(c);
 
             setId(R.id.CanvasId);
+            setBackgroundColor(Color.BLACK);
             Display display = getWindowManager().getDefaultDisplay();
             Point size = new Point(display.getWidth(), display.getHeight());
             mBitmapBackground = Bitmap.createBitmap(size.x, size.y, Bitmap.Config.ARGB_8888);
-            mBitmap = Bitmap.createBitmap(size.x, size.y,
-                    Bitmap.Config.ARGB_8888);
+            mBitmap = Bitmap.createBitmap(size.x, size.y, Bitmap.Config.ARGB_8888);
             mCanvas = new Canvas(mBitmap);
+
             mBitmapPaint = new Paint(Paint.DITHER_FLAG);
             multiLinePathManager = new MultiLinePathManager(MAX_POINTERS);
         }
@@ -548,8 +572,14 @@ public class EasyPaint extends GraphicsActivity implements
 
         @Override
         protected void onDraw(Canvas canvas) {
-            canvas.drawColor(0xFFFFFFFF);
-            canvas.drawBitmap(mBitmapBackground, 0, 0, new Paint());
+            // canvas.drawColor(0xFFFFFFFF);
+            canvas.drawColor(0x00000000);
+            int dy = 0;
+            if (mBitmapBackground.getHeight() < canvas.getHeight()) {
+                dy = canvas.getHeight()-mBitmapBackground.getHeight();
+                dy = dy/2;
+            }
+            canvas.drawBitmap(mBitmapBackground, 0, dy, new Paint());
             canvas.drawBitmap(mBitmap, 0, 0, mBitmapPaint);
             for (int i = 0; i < multiLinePathManager.superMultiPaths.length; i++) {
                 canvas.drawPath(multiLinePathManager.superMultiPaths[i], mPaint);

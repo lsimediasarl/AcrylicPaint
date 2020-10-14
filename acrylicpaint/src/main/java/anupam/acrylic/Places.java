@@ -24,16 +24,14 @@ import java.io.IOException;
 
 public class Places {
     public static File getScreenshotFolder() {
-        File path = new File(Environment.getExternalStorageDirectory(),
-                "/Acrylic Paint/");
+        File path = new File(Environment.getExternalStorageDirectory(),"/Acrylic Paint/");
         path.mkdirs();
 
         return path;
     }
 
     public static File getCameraTempFolder() {
-        File path = new File(Environment.getExternalStorageDirectory(),
-                "/Acrylic Paint/Temp/");
+        File path = new File(Environment.getExternalStorageDirectory(),"/Acrylic Paint/Temp/");
         path.mkdirs();
         // this folder should not be scanned
         File noScanning = new File(path, ".nomedia");

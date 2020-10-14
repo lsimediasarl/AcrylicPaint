@@ -3,6 +3,15 @@
 Acrylic Paint is a "Free as in Freedom" coloring app for Android which will allow you to share your imagination with others!
 We have made some changes to the FingerPaint project taken from API demos.
 
+## Fork ##
+
+This fork is a "library" version of the main app to be embedded in other android projects.
+You can call the EasyPaint activity with the following extra
+
+  file (String)
+  points to a file which will be used as the backgound. When saved, the activity closes and the file ic updated to contain
+  the drawing.
+
 ## Installing
 
 1. Install [F-Droid](http://f-droid.org)

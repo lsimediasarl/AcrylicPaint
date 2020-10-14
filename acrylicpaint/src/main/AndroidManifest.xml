@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="anupam.acrylic">
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <application>
+        <activity android:name="anupam.acrylic.EasyPaint"
+            android:screenOrientation="portrait">
+        </activity>
+        <activity android:name="anupam.acrylic.AboutActivity"
+            android:screenOrientation="portrait">
+        </activity>
+    </application>
+</manifest>
