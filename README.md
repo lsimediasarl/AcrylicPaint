@@ -8,9 +8,9 @@ We have made some changes to the FingerPaint project taken from API demos.
 This fork is a "library" version of the main app to be embedded in other android projects.
 You can call the EasyPaint activity with the following extra
 
-  file (String)
-  points to a file which will be used as the backgound. When saved, the activity closes and the file ic updated to contain
-  the drawing.
+    file (String)
+    points to a file which will be used as the backgound. When saved, the activity closes and the file ic updated to contain
+    the drawing.
 
 ## Installing
 
