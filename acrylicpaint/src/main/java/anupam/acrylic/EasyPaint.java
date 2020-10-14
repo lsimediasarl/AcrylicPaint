@@ -357,22 +357,6 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
             }
             return true;
 
-        } else if (itemId == R.id.share_menu) {
-            File screenshotPath = takeScreenshot(false, CompressFormat.PNG);
-            Intent i = new Intent();
-            i.setAction(Intent.ACTION_SEND);
-            i.setType("image/png");
-            i.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_title_template));
-            i.putExtra(Intent.EXTRA_TEXT, getString(R.string.share_text_template));
-            i.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(screenshotPath));
-            try {
-                startActivity(Intent.createChooser(i, getString(R.string.toolbox_share_title)));
-
-            } catch (ActivityNotFoundException ex) {
-                Toast.makeText(this.getApplicationContext(), R.string.no_way_to_share, Toast.LENGTH_LONG).show();
-            }
-            return true;
-
         } else if (itemId == R.id.open_image_menu) {
             Intent intent = new Intent();
             intent.setType("image/*"); //The argument is an all-lower-case MIME type - in this case, any image format.
