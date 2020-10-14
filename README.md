@@ -9,7 +9,8 @@ This fork is a "library" version of the main app to be embedded in other android
 You can call the EasyPaint activity with the following extra
 
     file (String)
-    points to a file which will be used as the backgound. When saved, the activity closes and the file is overwritten to contain the drawings.
+    points to a file which will be used as the backgound. When saved, the activity closes and the file is overwritten to
+    contain the drawings.
 
 ## Installing
 
