@@ -67,11 +67,15 @@ import com.nabinbhandari.android.permissions.PermissionHandler;
 import com.nabinbhandari.android.permissions.Permissions;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Calendar;
 
+/**
+ *
+ */
 @SuppressLint("ClickableViewAccessibility")
 public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnColorChangedListener {
 
@@ -334,16 +338,14 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
         } else if (itemId == R.id.save_menu) {
             if (source != null) {
                 if (source.getName().endsWith(".png")) {
-                    File tmp = takeScreenshot(true, CompressFormat.PNG);
-                    source.delete();
-                    tmp.renameTo(source);
+                    File tmp = takeScreenshot(false, CompressFormat.PNG);
+                    copy(tmp, source, 65535);
                     setResult(Activity.RESULT_OK);
                     finish();
 
                 } else if (source.getName().endsWith(".jpg")) {
-                    File tmp = takeScreenshot(true, CompressFormat.JPEG);
-                    source.delete();
-                    tmp.renameTo(source);
+                    File tmp = takeScreenshot(false, CompressFormat.JPEG);
+                    copy(tmp, source, 65535);
                     setResult(Activity.RESULT_OK);
                     finish();
 
@@ -354,6 +356,7 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
 
             } else {
                 takeScreenshot(true, CompressFormat.PNG);
+
             }
             return true;
 
@@ -413,18 +416,18 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
             Calendar cal = Calendar.getInstance();
 
             file = new File(path,
-
                     cal.get(Calendar.YEAR) + "_" + (1 + cal.get(Calendar.MONTH)) + "_"
                             + cal.get(Calendar.DAY_OF_MONTH) + "_"
                             + cal.get(Calendar.HOUR_OF_DAY) + "_"
                             + cal.get(Calendar.MINUTE) + "_" + cal.get(Calendar.SECOND)
-                            + ".png");
+                            + "."+(comp==CompressFormat.PNG?"png":"jpg"));
             output = new FileOutputStream(file);
             copyBitmap.compress(comp, 100, output);
 
         } catch (FileNotFoundException e) {
             file = null;
             e.printStackTrace();
+
         } finally {
             if (output != null) {
                 try {
@@ -723,6 +726,32 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
                 }
                 return null;
             }
+        }
+    }
+
+    public static boolean copy(File source, File dest, int chunk) {
+        try {
+            if (dest.getParentFile().exists() == false) dest.getParentFile().mkdirs();
+            if (chunk <= 0) chunk = 65535;
+            //--- Manual copy
+            FileOutputStream out = new FileOutputStream(dest);
+            FileInputStream in = new FileInputStream(source);
+            byte buffer[] = new byte[chunk];
+            while (true) {
+                int r = in.read(buffer);
+                if (r == -1) break;
+                out.write(buffer, 0, r);
+                out.flush();
+            }
+            in.close();
+            out.close();
+
+            return true;
+
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return false;
+
         }
     }
 }
