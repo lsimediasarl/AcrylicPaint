@@ -340,12 +340,14 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
                 if (source.getName().endsWith(".png")) {
                     File tmp = takeScreenshot(false, CompressFormat.PNG);
                     copy(tmp, source, 65535);
+                    tmp.delete();
                     setResult(Activity.RESULT_OK);
                     finish();
 
                 } else if (source.getName().endsWith(".jpg")) {
                     File tmp = takeScreenshot(false, CompressFormat.JPEG);
                     copy(tmp, source, 65535);
+                    tmp.delete();
                     setResult(Activity.RESULT_OK);
                     finish();
 
@@ -387,6 +389,7 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
 
     /**
      * This takes the screenshot of the whole screen. Is this a good thing?
+     * The returnes file is a temporary crated file with File.createTempFile
      */
     private File takeScreenshot(boolean showToast, CompressFormat comp) {
         // First we must check that permission has been granted, and if not, ask
@@ -412,19 +415,16 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
         FileOutputStream output = null;
         File file;
         try {
-            File path = Places.getScreenshotFolder();
             Calendar cal = Calendar.getInstance();
-
-            file = new File(path,
-                    cal.get(Calendar.YEAR) + "_" + (1 + cal.get(Calendar.MONTH)) + "_"
+            file = File.createTempFile(cal.get(Calendar.YEAR) + "_" + (1 + cal.get(Calendar.MONTH)) + "_"
                             + cal.get(Calendar.DAY_OF_MONTH) + "_"
                             + cal.get(Calendar.HOUR_OF_DAY) + "_"
-                            + cal.get(Calendar.MINUTE) + "_" + cal.get(Calendar.SECOND)
-                            + "."+(comp==CompressFormat.PNG?"png":"jpg"));
+                            + cal.get(Calendar.MINUTE) + "_" + cal.get(Calendar.SECOND),
+                            "."+(comp==CompressFormat.PNG?"png":"jpg"));
             output = new FileOutputStream(file);
             copyBitmap.compress(comp, 100, output);
 
-        } catch (FileNotFoundException e) {
+        } catch (IOException e) {
             file = null;
             e.printStackTrace();
 

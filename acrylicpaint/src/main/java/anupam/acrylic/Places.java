@@ -48,4 +48,5 @@ public class Places {
     public static File getCameraTempFile() {
         return new File(getCameraTempFolder(), "temp.jpg");
     }
+
 }
