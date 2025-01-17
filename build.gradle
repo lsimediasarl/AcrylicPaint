@@ -13,6 +13,10 @@ buildscript {
     }
 }
 
+ext {
+    permissionsVersion = '4.0.0'
+}
+
 allprojects {
     repositories {
         google()

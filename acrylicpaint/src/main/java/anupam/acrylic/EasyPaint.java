@@ -381,10 +381,18 @@ public class EasyPaint extends GraphicsActivity implements ColorPickerDialog.OnC
         return super.onOptionsItemSelected(item);
     }
 
+    /**
+     * The permission is granted by main app, so do not check it here
+     * @return
+     */
     private boolean isWritePermissionGranted() {
+        return true;
+        /*
         return Build.VERSION.SDK_INT <= Build.VERSION_CODES.M ||
                 checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                         == PackageManager.PERMISSION_GRANTED;
+
+         */
     }
 
     /**
